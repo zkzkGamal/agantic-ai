@@ -6,6 +6,7 @@ from functions.get_files_info import schema_get_files_info
 from functions.write_file import schema_write_file
 from functions.get_file_content import schema_get_file_content
 from functions.run_python_file import schema_run_python_file
+from functions.patch_file_line import schema_patch_file_lines
 from call_functions import call_function
 
 load_dotenv()
@@ -22,24 +23,40 @@ def main():
     args = parser.parse_args()
     prompt, verbose = args.prompt, args.verbose
     system_prompt = """
-You are a self-healing AI coding agent with full access to the working directory.
+        You are an autonomous AI code repair agent.
 
-Your goals:
-1. Automatically explore the project files and directories as needed.
-2. Understand the purpose of the project by reading `README`, `main.py`, or similar files.
-3. Locate the main logic and any functions related to the user's question or error.
-4. When an error or wrong output occurs, inspect relevant files and fix the issue.
-5. Always verify fixes by re-running code or tests before confirming success.
+        Your goal is to fix runtime or syntax errors in the project efficiently.
 
-You can:
-    - List files/directories recursively
-    - Read file contents
-    - Write or modify files
-    - Run Python files with optional args
-    - Inspect outputs and retry fixes if needed
+        ### Rules:
+        1. **Read and Analyze Efficiently**
+        - Use `get_files_info` to find files.
+        - Use `get_file_content` ONLY for files likely related to the issue.
+        - Keep context minimal to reduce token usage.
 
-Never ask the user for missing files — find them yourself in the project tree.
-"""
+        2. **Fixing Logic**
+        - If the problem is small (logic or minor error): use `patch_file_lines`.
+        - If the file has major syntax or structural issues: rewrite the entire file once using `write_file`.
+
+        3. **Verification**
+        - After patching or rewriting, use `run_python_file` to test.
+        - If successful → stop.
+        - If not → analyze the new error and patch again.
+
+        4. **Efficiency**
+        - Avoid re-reading files unnecessarily.
+        - Avoid explaining steps in detail — focus on function calls.
+        - Minimize total token use per turn.
+
+        5. **Response Rules**
+        - Each function call must receive exactly one corresponding function response part.
+        - Do not include text output with function calls.
+
+        ### Objective:
+        When fixing syntax or logic errors, instead of deleting the buggy line, comment it out and write the corrected version right below it.
+        When patching, if the line was already commented or fixed earlier, skip reapplying the same fix.\
+        Diagnose and fix the given project so that it runs successfully.
+        """
+
 
     messages = [types.Content(role="user", parts=[types.Part(text=prompt)])]
 
@@ -49,6 +66,7 @@ Never ask the user for missing files — find them yourself in the project tree.
             schema_write_file,
             schema_get_file_content,
             schema_run_python_file,
+            schema_patch_file_lines,
         ]
     )
 
@@ -56,11 +74,11 @@ Never ask the user for missing files — find them yourself in the project tree.
         tools=[available_functions], system_instruction=[system_prompt]
     )
     max_iter = 20
-    for i in range(max_iter):
+    for _ in range(max_iter):
         try:
             response = client.models.generate_content(
                 # model="gemma-3-27b-it",
-                model="gemini-2.0-flash-001",
+                model="gemini-2.5-flash",
                 contents=messages,
                 config=config,
             )
@@ -81,13 +99,25 @@ Never ask the user for missing files — find them yourself in the project tree.
                     messages.append(candidants.content)
 
             if response.function_calls:
+                # Collect all responses for this turn
+                function_responses = []
                 for function_call in response.function_calls:
-                    messages.append(call_function(function_call, verbose))
+                    function_responses.append(call_function(function_call, verbose, return_part=True))
+                
+                # Combine all into a single message
+                messages.append(
+                    types.Content(
+                        role="function",
+                        parts=function_responses
+                    )
+                )
             else:
                 print(response.text)
                 return
+
         except Exception as e:
             print(e)
+            break
 
 
 if __name__ == "__main__":

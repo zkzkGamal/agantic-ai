@@ -1,3 +1,4 @@
+from functions.patch_file_line import patch_file_lines
 from functions.run_python_file import run_python_file
 from functions.get_files_info import get_files_info
 from functions.get_file_content import get_file_content
@@ -6,60 +7,47 @@ from config import WORKING_DIRECTORY
 from google.genai import types
 
 
-def call_function(function_call_part, verbose=False):
+def call_function(function_call_part, verbose=False, return_part=False):
     function_name = function_call_part.name
     function_arguments = function_call_part.args
+
     if verbose:
-        print(
-            f"""
-              calling function {function_name} with arguments {function_arguments}
-            """
-        )
+        print(f"\ncalling function {function_name} with arguments {function_arguments}\n")
     else:
-        print(
-            f"""
-              calling function {function_name}
-            """
-        )
+        print(f"\n  calling function {function_name}\n")
 
     try:
-        function_response = ""
         if function_name == "get_files_info":
-            function_response = get_files_info(WORKING_DIRECTORY, **function_arguments)
+            result = get_files_info(WORKING_DIRECTORY, **function_arguments)
         elif function_name == "get_file_content":
-            function_response = get_file_content(WORKING_DIRECTORY, **function_arguments)
+            result = get_file_content(WORKING_DIRECTORY, **function_arguments)
         elif function_name == "write_file":
-            function_response = write_file(WORKING_DIRECTORY, **function_arguments)
+            result = write_file(WORKING_DIRECTORY, **function_arguments)
         elif function_name == "run_python_file":
-            function_response = run_python_file(WORKING_DIRECTORY, **function_arguments)
-        
-        if function_response != "":
-            return types.Content(
-                role="tool",
-                parts=[
-                    types.Part.from_function_response(
-                        name=function_name,
-                        response={"result":function_response},
-                    )
-                ],
-            )
+            result = run_python_file(WORKING_DIRECTORY, **function_arguments)
+        elif function_name == "patch_file_lines":
+            result = patch_file_lines(WORKING_DIRECTORY, **function_arguments)
         else:
-            return types.Content(
-                role="tool",
-                parts=[
-                    types.Part.from_function_response(
-                        name=function_name,
-                        response={"error": f"Unknown function: {function_name}"},
-                    )
-                ],
+            result = {"error": f"Unknown function: {function_name}"}
+
+        part = types.Part(
+            function_response=types.FunctionResponse(
+                name=function_name,
+                response={"result": result},
             )
-    except Exception as e:
-        return types.Content(
-            role="tool",
-            parts=[
-                types.Part.from_function_response(
-                    name=function_name,
-                    response={"error": f"Unknown function: {function_name} and \n {e}"},
-                )
-            ],
         )
+
+        if return_part:
+            return part
+        else:
+            return types.Content(role="function", parts=[part])
+
+    except Exception as e:
+        part = types.Part(
+            function_response=types.FunctionResponse(
+                name=function_name,
+                response={"error": f"Exception while calling {function_name}: {str(e)}"},
+            )
+        )
+        return part if return_part else types.Content(role="function", parts=[part])
+
