@@ -53,10 +53,8 @@ Before you begin, ensure you have the following:
     ```
 
 3.  **Install Dependencies**
-    This project uses `pyproject.toml`. You can install dependencies using `pip` or `uv`.
+    This project uses `uv` for dependency management.
     ```bash
-    pip install -e .
-    # OR if you use uv
     uv sync
     ```
 
@@ -80,7 +78,7 @@ The main entry point is `main.py`. You interact with the agent by providing a pr
 ### Basic Command
 
 ```bash
-python main.py --prompt "Your instruction here"
+uv run main.py --prompt "Your instruction here"
 ```
 
 ### Options
@@ -93,19 +91,19 @@ python main.py --prompt "Your instruction here"
 **1. Fix a buggy file:**
 
 ```bash
-python main.py --prompt "Fix the syntax error in calculator/main.py and run it to verify."
+uv run main.py --prompt "Fix the syntax error in calculator/main.py and run it to verify."
 ```
 
 **2. Create a new feature:**
 
 ```bash
-python main.py --prompt "Create a new script in functions/hello.py that prints 'Hello World' and run it." --verbose
+uv run main.py --prompt "Create a new script in functions/hello.py that prints 'Hello World' and run it." --verbose
 ```
 
 **3. Analyze and Document:**
 
 ```bash
-python main.py --prompt "Read the main.py file and create a documentation block at the top explaining what it does."
+uv run main.py --prompt "Read the main.py file and create a documentation block at the top explaining what it does."
 ```
 
 ## 🧪 Testing
@@ -115,7 +113,7 @@ The project includes a `tests.py` file to verify that the agent's internal tools
 Run the tests using:
 
 ```bash
-python tests.py
+uv run tests.py
 ```
 
 This will print the output of various tool checks (listing files, reading content, writing dummy files) to ensuring the environment is set up correctly.
